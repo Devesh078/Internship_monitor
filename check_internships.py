@@ -87,7 +87,10 @@ def save_state(state: dict) -> None:
 def send_email(changed: list[dict]) -> None:
     sender = os.environ["EMAIL_ADDRESS"]
     password = os.environ["EMAIL_PASSWORD"]
-    recipient = os.environ.get("RECIPIENT_EMAIL", sender)
+    # RECIPIENT_EMAIL can be one address or several, comma-separated,
+    # e.g. "a@gmail.com, b@gmail.com, c@gmail.com"
+    raw_recipients = os.environ.get("RECIPIENT_EMAIL", sender)
+    recipients = [addr.strip() for addr in raw_recipients.split(",") if addr.strip()]
 
     lines = ["The following internship/opportunity pages changed:\n"]
     for item in changed:
@@ -97,11 +100,11 @@ def send_email(changed: list[dict]) -> None:
     msg = MIMEText("\n".join(lines))
     msg["Subject"] = f"[Internship Radar] {len(changed)} page(s) changed"
     msg["From"] = sender
-    msg["To"] = recipient
+    msg["To"] = ", ".join(recipients)
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
         server.login(sender, password)
-        server.sendmail(sender, [recipient], msg.as_string())
+        server.sendmail(sender, recipients, msg.as_string())
 
 
 def main():
