@@ -34,15 +34,16 @@ TARGETS = [
     {"id": "infosys", "company": "Infosys", "program": "InStep", "url": "https://www.infosys.com/instep.html"},
     {"id": "googlestep", "company": "Google", "program": "STEP Internship", "url": "https://www.google.com/about/careers/applications/internships"},
     {"id": "accenture", "company": "Accenture", "program": "Tech Next Challenge", "url": "https://technextchallenge.in/"},
-    {"id": "goldman", "company": "Goldman Sachs", "program": "India Hackathon", "url": "https://www.goldmansachs.com/careers/programs-and-internships"},
+    {"id": "goldman", "company": "Goldman Sachs", "program": "India Hackathon", "url": "https://www.goldmansachs.com/careers/students/programs-and-internships/india/hackathon"},
     {"id": "sih", "company": "Govt. of India", "program": "Smart India Hackathon", "url": "https://www.sih.gov.in/"},
     {"id": "imaginecup", "company": "Microsoft", "program": "Imagine Cup", "url": "https://imaginecup.microsoft.com/en-us"},
-    {"id": "metahackercup", "company": "Meta", "program": "Hacker Cup", "url": "https://www.facebook.com/codingcompetitions/hacker-cup/"},
+    # Meta Hacker Cup dropped: facebook.com blocks almost all non-browser
+    # requests outright (400s), so a simple checker will never read it reliably.
     {"id": "amazonintern", "company": "Amazon", "program": "Internship", "url": "https://www.amazon.jobs/content/en/career-programs/university/internships-for-students"},
     {"id": "gsoc", "company": "Google", "program": "Summer of Code", "url": "https://summerofcode.withgoogle.com/"},
     {"id": "msresearch", "company": "Microsoft", "program": "Research", "url": "https://www.microsoft.com/en-us/research/"},
     {"id": "tcsresearch", "company": "TCS", "program": "Research Internship", "url": "https://www.tcs.com/careers/india/internship"},
-    {"id": "pmis", "company": "Govt. of India", "program": "PM Internship Scheme", "url": "https://pminternship.mca.gov.in/login/"},
+    {"id": "pmis", "company": "Govt. of India", "program": "PM Internship Scheme", "url": "https://pminternship.mca.gov.in/"},
     {"id": "isro", "company": "ISRO", "program": "Student Project Training", "url": "https://www.isro.gov.in/InternshipAndProjects.html"},
     {"id": "5ghackathon", "company": "Dept. of Telecom", "program": "5G Innovation Hackathon", "url": "https://eservices.dot.gov.in/5ghackathon/"},
     {"id": "digitalindia", "company": "Govt. of India", "program": "Digital India Internship", "url": "https://dii.nic.in/"},
@@ -52,13 +53,15 @@ TARGETS = [
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+                  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
 }
 
 
 def fetch_text(url: str) -> str | None:
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=20)
+        resp = requests.get(url, headers=HEADERS, timeout=30)
         resp.raise_for_status()
     except requests.RequestException as e:
         print(f"  ! fetch failed: {e}")
