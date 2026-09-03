@@ -7,16 +7,22 @@ infrastructure — nothing needs to stay open on your laptop or phone.
 ## How it works
 
 1. Each day, GitHub runs `check_internships.py`.
-2. It downloads each page in `TARGETS`, strips scripts/styles, and hashes
-   the visible text.
-3. It compares that hash to the one saved last time (`state.json`).
-4. If any page's hash changed, it emails you a list of what changed.
-5. It commits the new hashes back to the repo so tomorrow's run has
+2. It downloads each page in `TARGETS`, strips scripts/styles, and strips
+   out volatile tokens (session IDs, CSRF nonces, long numeric strings)
+   that regenerate on every page load regardless of real content changes.
+3. It compares that cleaned text to what was saved last time (`state.json`)
+   using a similarity ratio, not an exact match — small drift (a rotating
+   banner, a leftover token) is ignored. Only when more than ~3% of a
+   page's text differs does it count as "changed."
+4. If any page changed past that threshold, it emails you a list of what
+   changed.
+5. It commits the new page text back to the repo so tomorrow's run has
    something to compare against.
 
 The first run just records a baseline for every page (nothing to compare
 yet), so you won't get an email on day one — only from day two onward, when
-something actually differs from day one.
+something actually differs meaningfully from day one. If you ever reset or
+rewrite `state.json`, expect the same "no email on the next run" behavior.
 
 ## Setup (10 minutes, all free)
 
@@ -57,10 +63,12 @@ add them back once you find a reliable official URL.
 
 ## Honest limitations
 
-- This detects *page changes*, not *new hiring specifically* — a redesigned
-  banner or a date stamp updating can trigger a false-positive email. That's
-  the trade-off for something free and zero-maintenance; treat each alert as
-  "go check the page," not gospel.
+- This detects *meaningful page changes*, not *new hiring specifically* — a
+  genuinely large content rewrite (not just a token or banner) can still
+  trigger a false-positive email. The similarity threshold cuts noise a lot
+  but won't eliminate it entirely; treat each alert as "go check the page,"
+  not gospel. Adjust `SIMILARITY_THRESHOLD` near the top of
+  `check_internships.py` if it's too noisy or too quiet.
 - Pages that render their content entirely via JavaScript (rare among these,
   but possible) may not show real content to a simple `requests` fetch. If a
   particular company never seems to trigger, that's the likely reason —

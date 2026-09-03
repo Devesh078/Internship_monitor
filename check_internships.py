@@ -1,22 +1,23 @@
 """
 Internship page monitor.
 
-Fetches each career/opportunity page in TARGETS, hashes its visible text,
-and compares against the hash saved last time (state.json, committed back
-to the repo by the GitHub Actions workflow). If a page's content changed,
-it emails you.
+Fetches each career/opportunity page in TARGETS, cleans its visible text,
+and compares it against the text saved last time (state.json, committed
+back to the repo by the GitHub Actions workflow). If a page's content
+changed by more than a small threshold, it emails you.
 
 This is a "something changed" detector, not a "they're hiring" detector —
-some changes will be noise (a banner, a date stamp). That's a reasonable
-trade-off for a free, zero-maintenance checker: an occasional false-positive
-email beats missing the real one.
+it compares how much of each page's text actually differs from last time,
+ignoring small amounts of drift (a rotating banner, a session token) so it
+only emails you when a meaningful chunk of the page has changed.
 """
 
-import hashlib
 import json
 import os
+import re
 import smtplib
 import sys
+from difflib import SequenceMatcher
 from email.mime.text import MIMEText
 from pathlib import Path
 
@@ -24,6 +25,14 @@ import requests
 from bs4 import BeautifulSoup
 
 STATE_FILE = Path(__file__).parent / "state.json"
+
+# Below this similarity ratio (0-1), a page counts as "changed enough to
+# email about". 0.97 means more than ~3% of the text differs. Lower this
+# if you're missing real changes; raise it if you're still getting noise.
+SIMILARITY_THRESHOLD = 0.97
+
+# Cap how much text we store per page, to keep state.json a sane size.
+MAX_STORED_CHARS = 20000
 
 # id must be stable — it's the key used to track each page's last-seen hash.
 TARGETS = [
@@ -70,11 +79,23 @@ def fetch_text(url: str) -> str | None:
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
     text = " ".join(soup.get_text(separator=" ").split())
-    return text
+    return normalize(text)
 
 
-def hash_text(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+def normalize(text: str) -> str:
+    """Strip tokens that regenerate on every load regardless of real
+    content changes: long hex/alphanumeric IDs (session tokens, CSRF
+    nonces, cache-busting hashes) and long numeric strings."""
+    text = re.sub(r"\b[a-fA-F0-9]{16,}\b", "", text)
+    text = re.sub(r"\b[A-Za-z0-9_-]{24,}\b", "", text)
+    text = re.sub(r"\b\d{6,}\b", "", text)
+    return " ".join(text.split())[:MAX_STORED_CHARS]
+
+
+def similarity(old: str, new: str) -> float:
+    if not old:
+        return 1.0
+    return SequenceMatcher(None, old, new).ratio()
 
 
 def load_state() -> dict:
@@ -119,12 +140,15 @@ def main():
         text = fetch_text(target["url"])
         if text is None:
             continue
-        new_hash = hash_text(text)
-        old_hash = state.get(target["id"])
-        if old_hash is not None and old_hash != new_hash:
-            print("  -> CHANGED")
-            changed.append(target)
-        state[target["id"]] = new_hash
+        old_text = state.get(target["id"])
+        if old_text is not None:
+            ratio = similarity(old_text, text)
+            if ratio < SIMILARITY_THRESHOLD:
+                print(f"  -> CHANGED ({ratio:.1%} similar)")
+                changed.append(target)
+            else:
+                print(f"  ok ({ratio:.1%} similar)")
+        state[target["id"]] = text
 
     save_state(state)
 
